@@ -1,18 +1,25 @@
+import time
+
+
 __author__ = 'ChyrosNX'
 
 PROBLEM_NO = 3
 TITLE = 'Largest Prime Factor'
 
 
+start = int(time.time() * 1000)
+
+
 def solve(num):
     _max = 0
 
-    for i in range(2, num + 1):
+    for i in range(2, int(num / 2) + 1):
         if num % i != 0:
             continue
 
         if i >= 10086647:
-            print('  - checking if {} is a prime number...'.format(i))
+            elapsed_time = int(time.time() * 1000) - start
+            print('  - checking if {} is a prime number... (Elapsed Time: {} millis)'.format(i, elapsed_time))
 
         if is_prime_number(i):
             _max = i
