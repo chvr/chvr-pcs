@@ -22,20 +22,20 @@ def solve():
     print('\nANSWER: Sum of even-valued terms is {}.'.format(str(_sum)))
 
 
-def display_title():
-    text_title = 'Problem #{} - {}'.format(str(PROBLEM_NO).zfill(2), TITLE)
-    text_dashes = ''.rjust(len(text_title), '-')
-    text_full_title = '{}\n{}\n{}\n'.format(text_dashes, text_title, text_dashes)
-
-    print(text_full_title)
-
-
 def fibonacci(n):
     """Compute fibonacci recursively where n is a sequence number."""
     if n in (0, 1):
         return n
     else:
         return fibonacci(n - 1) + fibonacci(n - 2)
+
+
+def display_title():
+    text_title = 'Problem #{} - {}'.format(str(PROBLEM_NO).zfill(2), TITLE)
+    text_dashes = ''.rjust(len(text_title), '-')
+    text_full_title = '{}\n{}\n{}\n'.format(text_dashes, text_title, text_dashes)
+
+    print(text_full_title)
 
 
 def main():
