@@ -1,6 +1,10 @@
+import logging
+import os
 from queue import Queue
 from threading import Thread
 import time
+#from Scripts.chyros.template.chyros import loggingutil
+from chyros import loggingutil
 
 __author__ = 'ChyrosNX'
 
@@ -8,21 +12,27 @@ PROBLEM_NO = 3
 TITLE = 'Largest Prime Factor (Threaded)'
 
 
-_debug_mode = False
-threads = []
+_debug_mode = True
+threads = {}
+thread_name = 0
 result_queue = Queue()
 start = int(time.time() * 1000)
 max_prime_factor = 0
 task_completed = False
 
 
-def get_divisibles(num, from_divisible_by, to_divisible_by):
+def get_divisibles(name, num, from_divisible_by, to_divisible_by):
+    lifetime_start = int(time.time() * 1000)
+
     for i in range(from_divisible_by, to_divisible_by):
-        if num % i == 0:
+        if (num / i).is_integer():
             result_queue.put(i)
 
     if _debug_mode:
-        print('{} -> {} completed.'.format(from_divisible_by, to_divisible_by))
+        elapsed_time = int(time.time() * 1000) - lifetime_start
+        logging.debug('Threads: {} | {} -> {} completed (Elapsed time: {} ms)'.format(len(threads), from_divisible_by, to_divisible_by, elapsed_time))
+
+    threads.pop(name)
 
 
 def check_for_prime_number(num):
@@ -34,26 +44,26 @@ def check_for_prime_number(num):
 
             if divisible >= 10086647:
                 elapsed_time = int(time.time() * 1000) - start
-                print('  - checking if {} is a prime number... (Elapsed Time: {} millis)'.format(divisible, elapsed_time))
+                logging.info('  - checking if {} is a prime number... (Elapsed Time: {} millis)'.format(divisible, elapsed_time))
 
             if is_prime_number(divisible):
                 if divisible > max_prime_factor:
                     max_prime_factor = divisible
 
-                print('{} is a prime factor of {}.'.format(divisible, str(num)))
+                logging.info('{} is a prime factor of {}.'.format(divisible, str(num)))
 
         time.sleep(0.02)
 
-    print('\nANSWER: The largest prime factor of the number {} is {}.'.format(str(num), str(max_prime_factor)))
+    logging.info('ANSWER: The largest prime factor of the number {} is {}.'.format(str(num), str(max_prime_factor)))
 
 
 def solve(num):
-    global task_completed
+    global task_completed, thread_name
 
     Thread(target=check_for_prime_number, args={num}).start()
 
-    #batch_per_thread = 1000000
-    batch_per_thread = 100000
+    batch_per_thread = 5000000
+    thread_limit = 999999999
 
     from_range = 2
     to_range = num + 1
@@ -68,9 +78,17 @@ def solve(num):
 
         idx += batch_per_thread
 
-        t = Thread(target=get_divisibles, args=(num, arg_from_divisible_by, arg_to_divisible_by))
+        while len(threads) >= thread_limit:
+            time.sleep(0.02)
+
+        t = Thread(target=get_divisibles, args=(thread_name, num, arg_from_divisible_by, arg_to_divisible_by))
+        threads[thread_name] = t
         t.start()
-        threads.append(t)
+
+        if _debug_mode:
+            logging.debug('Threads: {} | New thread created.'.format(len(threads)))
+
+        thread_name += 1
 
     for t in threads:
         t.join()
@@ -83,7 +101,7 @@ def is_prime_number(n):
         return False
 
     for divisor in range(2, int(n / 2) + 1):
-        if n % divisor == 0:
+        if (n / divisor).is_integer():
             return False
 
     return True
@@ -106,19 +124,21 @@ def ask_for_whole_number(default_num):
         num = input('- Give a whole number(default: {}): '.format(default_num)) or default_num
         num = int(num)
     except ValueError:
-        print('NOTE: \'{}\' is not a whole number. Default value of {} will be used.'.format(str(num), str(default_num)))
+        logging.warning('NOTE: \'{}\' is not a whole number. Default value of {} will be used.'.format(str(num), str(default_num)))
         num = default_num
 
     return num
 
 
 def main():
+    log_file = '{}.log'.format(os.path.splitext(os.path.basename(__file__))[0])
+    loggingutil.create(log_file, log_level=logging.DEBUG)
+
     default_num = 13195
 
     display_title()
-    num = ask_for_whole_number(default_num)
-    #num = 600851475143
-    print()
+    #num = ask_for_whole_number(default_num)
+    num = 600851475143
     solve(num)
 
 
