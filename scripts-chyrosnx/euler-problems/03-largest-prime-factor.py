@@ -14,7 +14,7 @@ def solve(num):
     _max = 0
 
     for i in range(2, int(num / 2) + 1):
-        if num % i != 0:
+        if not (num / i).is_integer():  # Faster than using modulus operator
             continue
 
         if i >= 10086647:
@@ -33,7 +33,7 @@ def is_prime_number(n):
         return False
 
     for divisor in range(2, int(n / 2) + 1):
-        if n % divisor == 0:
+        if (n / divisor).is_integer():  # Faster than using modulus operator
             return False
 
     return True
