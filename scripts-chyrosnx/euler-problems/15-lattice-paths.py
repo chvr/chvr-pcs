@@ -1,94 +1,135 @@
 import os
 from enum import Enum
+from queue import LifoQueue
 
 
 __author__ = 'ChyrosNX'
 
 
-class Direction(Enum):
+class Path(Enum):
     up = 0
     right = 1
     down = 2
     left = 3
 
 
+class Intersection:
+
+    def __init__(self, open_paths):
+        self._paths = open_paths
+        self._closed_paths = []
+        self._used_path = None
+
+    def get_all_paths(self):
+        return self._paths
+
+    def get_open_paths(self):
+        open_paths = []
+        for p in self._paths:
+            if p not in self._closed_paths:
+                open_paths.append(p)
+
+        return open_paths
+
+    def get_used_path(self):
+        return self._used_path
+
+    def use_path(self, path):
+        if path in self.get_open_paths():
+            self._closed_paths.append(path)
+            self._used_path = path
+
+    def reset(self):
+        self._closed_paths.clear()
+        self._used_path = None
+
+
 class Grid:
 
-    def __init__(self, columns=2, rows=2, verbose=False):
+    def __init__(self, columns=2, rows=2, allowed_paths=[Path.up, Path.right, Path.down, Path.left], verbose=False):
         self._columns = columns
         self._rows = rows
+        self._allowed_paths = allowed_paths
         self._verbose = verbose
+
         self._pos_x = 0
         self._pos_y = 0
-        self._matrix = []
-        self._create()
+        self._move_history = LifoQueue()
+        self._last_move = None
 
-    def _create(self):
+        self._create_grid_matrix()
+
+    def _create_grid_matrix(self):
+        self._grid_matrix = []
         for r in range(0, self._rows + 1):
-            self._matrix.append([])
+            self._grid_matrix.append([])
             for c in range(0, self._columns + 1):
-                self._matrix[r].append([0])
+                open_paths = []
+                if Path.up    in self._allowed_paths and r > 0            : open_paths.append(Path.up)
+                if Path.right in self._allowed_paths and c < self._columns: open_paths.append(Path.right)
+                if Path.down  in self._allowed_paths and r < self._rows   : open_paths.append(Path.down)
+                if Path.left  in self._allowed_paths and c > 0            : open_paths.append(Path.left)
+                self._grid_matrix[r].append(Intersection(open_paths))
 
-    def clone(self):
-        _grid = Grid(self._columns, self._rows, self._verbose)
-        _grid._pos_x = self._pos_x
-        _grid._pos_y = self._pos_y
-        _grid._matrix = []
-        for r in range(0, self._rows + 1):
-            _grid._matrix.append(list(self._matrix[r]))
+    def get_intersection(self):
+        return self._grid_matrix[self._pos_y][self._pos_x]
 
-        return _grid
+    def get_open_paths(self):
+        return self._grid_matrix[self._pos_y][self._pos_x].get_open_paths()
 
-    def get_directions(self, allowed_directions=[Direction.up, Direction.right, Direction.down, Direction.left]):
-        directions = []
-        if Direction.up in allowed_directions and self._pos_y > 0:
-            directions.append(Direction.up)
-        if Direction.right in allowed_directions and self._pos_x < self._columns:
-            directions.append(Direction.right)
-        if Direction.down in allowed_directions and self._pos_y < self._rows:
-            directions.append(Direction.down)
-        if Direction.left in allowed_directions and self._pos_x > 0:
-            directions.append(Direction.left)
-
-        return directions
-
-    def move(self, direction):
-        if direction not in self.get_directions():
+    def backtrack(self):
+        if self._move_history.empty():
             if self._verbose:
-                print('! Can\'t move {}.'.format(direction.name))
+                print('! No more paths to backtrack from.')
             return False
 
-        if direction == Direction.up:
-            self._matrix[self._pos_y][self._pos_x] = direction
-            self._pos_y -= 1
-            if self._verbose:
-                print(': Move ^ (up)')
-        elif direction == Direction.right:
-            self._matrix[self._pos_y][self._pos_x] = direction
-            self._pos_x += 1
-            if self._verbose:
-                print(': Move > (rt)')
-        elif direction == Direction.down:
-            self._matrix[self._pos_y][self._pos_x] = direction
-            self._pos_y += 1
-            if self._verbose:
-                print(': Move v (dn)')
-        elif direction == Direction.left:
-            self._matrix[self._pos_y][self._pos_x] = direction
-            self._pos_x -= 1
-            if self._verbose:
-                print(': Move < (lt)')
+        self._last_move = self._move_history.get()
+        self.get_intersection().reset()
+
+        if   self._last_move == Path.up   : self._pos_y += 1
+        elif self._last_move == Path.right: self._pos_x -= 1
+        elif self._last_move == Path.down : self._pos_y -= 1
+        elif self._last_move == Path.left : self._pos_x += 1
         else:
-            print('! Can\'t move - Invalid direction: {}.'.format(direction))
+            if self._verbose:
+                print('! Unable to backtrack anymore.')
             return False
 
         return True
 
-    def is_route_completed(self):
-        if self._pos_y == self._rows and self._pos_x == self._columns:
-            return True
+    def move(self, path=None):
+        open_paths = self.get_open_paths()
+        if self._last_move is not None and self._last_move in open_paths:
+            open_paths.remove(self._last_move)
+            self._last_move = None
 
-        return False
+        if path is None:
+            if len(open_paths) > 0:
+                path = open_paths[0]
+            else:
+                if self._verbose:
+                    print('! No more open paths to move into.')
+                return False
+        elif path not in open_paths:
+            if self._verbose:
+                print('! Unable to move {}.'.format(path.name))
+            return False
+
+        self.get_intersection().use_path(path)
+        self._move_history.put(path)
+
+        if   path == Path.up   : self._pos_y -= 1
+        elif path == Path.right: self._pos_x += 1
+        elif path == Path.down : self._pos_y += 1
+        elif path == Path.left : self._pos_x -= 1
+
+        return True
+
+    def is_at_start(self):
+        return self._pos_x == self._pos_y == 0
+
+    def is_at_end(self):
+        return self._pos_y == self._rows and self._pos_x == self._columns
 
     def _to_string(self):
         COL_WIDTH = 3
@@ -100,14 +141,14 @@ class Grid:
                 if self._pos_y == r and self._pos_x == c:
                     area = 'x'
                 else:
-                    direction = self._matrix[r][c]
-                    if direction == Direction.up:
+                    path = self._grid_matrix[r][c].get_used_path()
+                    if path == Path.up:
                         area = '^'
-                    elif direction == Direction.right:
+                    elif path == Path.right:
                         area = '>'
-                    elif direction == Direction.down:
+                    elif path == Path.down:
                         area = 'v'
-                    elif direction == Direction.left:
+                    elif path == Path.left:
                         area = '<'
                     else:
                         area = '+'
@@ -145,39 +186,22 @@ class Main:
     def start(self, width, height):
         print('Depending on the given X by X grid, calculating routes may take a while...{}'.format(os.linesep))
 
-        allowed_directions = [Direction.right, Direction.down]
-        completed_routes = []
-        incomplete_routes = []
+        _grid = Grid(width, height, allowed_paths=[Path.right, Path.down])
+        routes = 0
 
-        _grid = Grid(width, height)
-        incomplete_routes.append(_grid)
+        while not (_grid.is_at_start() and len(_grid.get_open_paths()) == 0):
+            _grid.move()
+            if _grid.is_at_end():
+                routes += 1
+                print('Route #{}{}{}{}'.format(routes, os.linesep, _grid, os.linesep, os.linesep))
 
-        while len(incomplete_routes) > 0:
-            for grid in incomplete_routes:
-                directions = grid.get_directions(allowed_directions=allowed_directions)
-                for i in range(0, len(directions)):
-                    if i == 0:
-                        grid_copy = grid.clone()
+                while not _grid.is_at_start():
+                    _grid.backtrack()
+                    has_avail_paths = len(_grid.get_intersection().get_all_paths()) > 1 and len(_grid.get_open_paths()) > 0
+                    if has_avail_paths:
+                        break
 
-                    if i > 0:
-                        new_grid = grid_copy.clone()
-                        new_grid.move(directions[i])
-                        incomplete_routes.append(new_grid)
-                    else:
-                        grid.move(directions[i])
-
-            for route in incomplete_routes:
-                if route.is_route_completed():
-                    completed_routes.append(route)
-                    incomplete_routes.remove(route)
-
-        counter = 0
-        for route in completed_routes:
-            counter += 1
-            print('Route #{}{}{}{}'.format(counter, os.linesep, route, os.linesep, os.linesep))
-
-        print('There were {} possible routes for {}x{} grid.'.format(len(completed_routes), width, height))
+        print('There were {} possible routes for {}x{} grid.'.format(routes, width, height))
 
 main = Main()
 main.start(5, 5)
-
